@@ -489,9 +489,7 @@ When you run `python demo.py`, the terminal prints out the robot's report card a
 
 # APPENDIX
 
-**Summary of "Context Language Models" (arXiv:2609.37725)**
-
-![](https://arxiv.org/pdf/2609.37725)
+[**Summary of "Context Language Models" (arXiv:2609.37725)**](https://arxiv.org/pdf/2609.37725)
 
 Standard language models operate on an append-only basis: every prompt, search result, and generated token piles up until the model hits a context limit or gets lost in the noise. This paper introduces Context Language Models (CLMs), which allow AI agents to programmatically edit their own live working memory.
 
