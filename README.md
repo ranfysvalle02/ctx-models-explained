@@ -357,6 +357,7 @@ def coach_training_step(
     clip_down: float = 0.20,
     clip_up: float = 0.28,      # Asymmetric Clip-Higher from the research paper
     anchor_strength: float = 0.02,
+    review_passes: int = 3,     # Multiple passes per batch so clipping limits activate
 ) -> int:
     """
     Unpacks every Polaroid snapshot from valid 8-clone tryouts and updates the
@@ -395,24 +396,26 @@ def coach_training_step(
         log_probs = F.log_softmax(logits + mask, dim=-1)
         return log_probs.gather(1, move_tensor.unsqueeze(1)).squeeze(1)
 
-    new_conf = get_move_confidences(student_brain)
     with torch.no_grad():
         teacher_conf = get_move_confidences(teacher_brain)
 
-    # Clipped policy update so the robot learns steadily without overreacting
-    change_ratio = torch.exp(new_conf - old_conf_tensor)
-    safe_ratio = torch.clamp(change_ratio, 1.0 - clip_down, 1.0 + clip_up)
-    coaching_loss = -torch.min(change_ratio * grade_tensor, safe_ratio * grade_tensor).mean()
+    for _ in range(review_passes):
+        new_conf = get_move_confidences(student_brain)
 
-    # Gentle anchor so the robot stays close to its starting curiosity
-    drift = teacher_conf - new_conf
-    anchor_loss = (torch.exp(drift) - drift - 1.0).mean()
+        # Clipped policy update so the robot learns steadily without overreacting
+        change_ratio = torch.exp(new_conf - old_conf_tensor)
+        safe_ratio = torch.clamp(change_ratio, 1.0 - clip_down, 1.0 + clip_up)
+        coaching_loss = -torch.min(change_ratio * grade_tensor, safe_ratio * grade_tensor).mean()
 
-    total_loss = coaching_loss + anchor_strength * anchor_loss
-    coach_optimizer.zero_grad()
-    total_loss.backward()
-    torch.nn.utils.clip_grad_norm_(student_brain.parameters(), 1.0)
-    coach_optimizer.step()
+        # Gentle anchor so the robot stays close to its starting curiosity
+        drift = teacher_conf - new_conf
+        anchor_loss = (torch.exp(drift) - drift - 1.0).mean()
+
+        total_loss = coaching_loss + anchor_strength * anchor_loss
+        coach_optimizer.zero_grad()
+        total_loss.backward()
+        torch.nn.utils.clip_grad_norm_(student_brain.parameters(), 1.0)
+        coach_optimizer.step()
 
     return useful_rounds
 
